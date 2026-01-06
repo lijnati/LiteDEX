@@ -13,6 +13,8 @@ export const ERC20_ABI = [
 ];
 
 export const DEX_ABI = [
+    "function name() view returns (string)",
+    "function symbol() view returns (string)",
     "function tokenA() view returns (address)",
     "function tokenB() view returns (address)",
     "function reserveA() view returns (uint256)",
@@ -28,6 +30,8 @@ export const DEX_ABI = [
 
 export const FACTORY_ABI = [
     "function getPair(address, address) view returns (address)",
+    "function allPairs(uint256) view returns (address)",
+    "function allPairsLength() view returns (uint256)",
     "function createPair(address, address) returns (address)",
     "event PairCreated(address indexed token0, address indexed token1, address pair, uint256)"
 ];

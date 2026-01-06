@@ -58,7 +58,7 @@ export default function Home() {
   };
 
   const fetchPair = useCallback(async () => {
-    if (!provider) return;
+    if (!provider || !account) return;
     try {
       const signer = await provider.getSigner();
       const factory = new ethers.Contract(DEX_FACTORY_ADDRESS, FACTORY_ABI, signer);
@@ -73,10 +73,8 @@ export default function Home() {
           b: ethers.formatEther(resB)
         });
 
-        if (account) {
-          const bal = await dex.balanceOf(account);
-          setLpBalance(ethers.formatEther(bal));
-        }
+        const bal = await dex.balanceOf(account);
+        setLpBalance(ethers.formatEther(bal));
       }
     } catch (err) {
       console.error("Error fetching pair:", err);
