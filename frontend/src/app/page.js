@@ -33,6 +33,11 @@ export default function Home() {
   const [fromToken, setFromToken] = useState({ symbol: "TKNA", address: TOKEN_A_ADDRESS });
   const [toToken, setToToken] = useState({ symbol: "TKNB", address: TOKEN_B_ADDRESS });
 
+  // Liquidity States
+  const [liqAmountA, setLiqAmountA] = useState("");
+  const [liqAmountB, setLiqAmountB] = useState("");
+  const [lpBalance, setLpBalance] = useState("0");
+
   // DEX Info
   const [reserves, setReserves] = useState({ a: "0", b: "0" });
   const [pairAddress, setPairAddress] = useState("");
@@ -67,11 +72,16 @@ export default function Home() {
           a: ethers.formatEther(resA),
           b: ethers.formatEther(resB)
         });
+
+        if (account) {
+          const bal = await dex.balanceOf(account);
+          setLpBalance(ethers.formatEther(bal));
+        }
       }
     } catch (err) {
       console.error("Error fetching pair:", err);
     }
-  }, [provider]);
+  }, [provider, account]);
 
   useEffect(() => {
     fetchPair();
@@ -104,6 +114,46 @@ export default function Home() {
     } catch (err) {
       console.error("Swap failed:", err);
       alert("Swap failed. See console.");
+    }
+    setLoading(false);
+  };
+
+  const handleAddLiquidity = async () => {
+    if (!pairAddress || !liqAmountA || !liqAmountB) return;
+    setLoading(true);
+    try {
+      const signer = await provider.getSigner();
+      const dex = new ethers.Contract(pairAddress, DEX_ABI, signer);
+      const tokenA = new ethers.Contract(TOKEN_A_ADDRESS, ERC20_ABI, signer);
+      const tokenB = new ethers.Contract(TOKEN_B_ADDRESS, ERC20_ABI, signer);
+
+      const valA = ethers.parseEther(liqAmountA);
+      const valB = ethers.parseEther(liqAmountB);
+
+      // Approve Token A
+      const allowanceA = await tokenA.allowance(account, pairAddress);
+      if (allowanceA < valA) {
+        const txA = await tokenA.approve(pairAddress, valA);
+        await txA.wait();
+      }
+
+      // Approve Token B
+      const allowanceB = await tokenB.allowance(account, pairAddress);
+      if (allowanceB < valB) {
+        const txB = await tokenB.approve(pairAddress, valB);
+        await txB.wait();
+      }
+
+      const txAdd = await dex.addLiquidity(valA, valB);
+      await txAdd.wait();
+
+      alert("Liquidity added successfully!");
+      fetchPair();
+      setLiqAmountA("");
+      setLiqAmountB("");
+    } catch (err) {
+      console.error("Add liquidity failed:", err);
+      alert("Failed to add liquidity.");
     }
     setLoading(false);
   };
@@ -229,15 +279,51 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            /* Pool View Placeholder */
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "12px" }}>
-              <div style={{ textAlign: "center", padding: "40px 0" }}>
-                <Plus size={48} color="rgba(255,255,255,0.1)" style={{ marginBottom: "12px" }} />
-                <h3 style={{ marginBottom: "8px" }}>Your Liquidity</h3>
-                <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>Connect your wallet to view your liquidity positions.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "12px" }}>
+              <div style={{ background: "var(--glass-bg)", padding: "16px", borderRadius: "16px", marginBottom: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "14px", color: "var(--text-muted)" }}>Your Position</span>
+                  <span style={{ fontSize: "14px", fontWeight: "600" }}>{parseFloat(lpBalance).toFixed(6)} LP</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+                  <span>Pooled {fromToken.symbol}</span>
+                  <span>{((parseFloat(lpBalance) / (parseFloat(lpBalance) || 1)) * reserves.a || 0).toFixed(4)}</span>
+                </div>
               </div>
-              <button className="btn-primary" style={{ width: "100%" }}>
-                Add Liquidity
+
+              <div className="input-group">
+                <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{fromToken.symbol} Amount</span>
+                <input
+                  placeholder="0.0"
+                  type="number"
+                  value={liqAmountA}
+                  onChange={(e) => setLiqAmountA(e.target.value)}
+                  style={{ fontSize: "20px" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "center", margin: "-8px 0" }}>
+                <Plus size={16} color="var(--text-muted)" />
+              </div>
+
+              <div className="input-group">
+                <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{toToken.symbol} Amount</span>
+                <input
+                  placeholder="0.0"
+                  type="number"
+                  value={liqAmountB}
+                  onChange={(e) => setLiqAmountB(e.target.value)}
+                  style={{ fontSize: "20px" }}
+                />
+              </div>
+
+              <button
+                className="btn-primary"
+                style={{ marginTop: "12px", width: "100%", padding: "16px" }}
+                onClick={handleAddLiquidity}
+                disabled={loading || !liqAmountA || !liqAmountB}
+              >
+                {loading ? <RefreshCw className="animate-spin" /> : (account ? "Supply Liquidity" : "Connect Wallet")}
               </button>
             </div>
           )}
