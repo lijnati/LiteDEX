@@ -194,6 +194,10 @@ contract SimpleDEX is ERC20, ReentrancyGuard {
     uint256 public constant FEE_DENOMINATOR = 1000;
     uint256 public constant MINIMUM_LIQUIDITY = 1000;
 
+    uint256 public price0CumulativeLast;
+    uint256 public price1CumulativeLast;
+    uint32 public blockTimestampLast;
+
     event LiquidityAdded(
         address indexed provider,
         uint256 amountA,
@@ -274,6 +278,8 @@ contract SimpleDEX is ERC20, ReentrancyGuard {
         reserveA += amountA;
         reserveB += amountB;
 
+        _update(reserveA, reserveB);
+
         emit LiquidityAdded(msg.sender, amountA, amountB, lpMinted);
         emit Sync(reserveA, reserveB);
     }
@@ -298,6 +304,8 @@ contract SimpleDEX is ERC20, ReentrancyGuard {
 
         _safeTransfer(tokenA, msg.sender, amountA);
         _safeTransfer(tokenB, msg.sender, amountB);
+
+        _update(reserveA, reserveB);
 
         emit LiquidityRemoved(msg.sender, amountA, amountB, lpAmount);
         emit Sync(reserveA, reserveB);
@@ -349,6 +357,8 @@ contract SimpleDEX is ERC20, ReentrancyGuard {
 
         _safeTransfer(outputToken, msg.sender, amountOut);
 
+        _update(reserveA, reserveB);
+
         emit Swap(
             msg.sender,
             tokenIn,
@@ -394,6 +404,27 @@ contract SimpleDEX is ERC20, ReentrancyGuard {
     function getPriceBinA() external view returns (uint256 price) {
         if (reserveB == 0) return 0;
         return (reserveA * 1e18) / reserveB;
+    }
+
+    function _update(uint256 _reserveA, uint256 _reserveB) internal {
+        uint32 blockTimestamp = uint32(block.timestamp % 2 ** 32);
+        uint32 timeElapsed;
+        unchecked {
+            timeElapsed = blockTimestamp - blockTimestampLast;
+        }
+
+        if (timeElapsed > 0 && _reserveA != 0 && _reserveB != 0) {
+            // Price of A in B: reserveB / reserveA
+            // Price of B in A: reserveA / reserveB
+            // We use 1e18 for precision
+            price0CumulativeLast +=
+                ((_reserveB * 1e18) / _reserveA) *
+                timeElapsed;
+            price1CumulativeLast +=
+                ((_reserveA * 1e18) / _reserveB) *
+                timeElapsed;
+        }
+        blockTimestampLast = blockTimestamp;
     }
 
     function _safeTransfer(IERC20 token, address to, uint256 amount) internal {
