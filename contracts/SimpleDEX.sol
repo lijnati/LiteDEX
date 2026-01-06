@@ -27,6 +27,141 @@ interface IERC20 {
     );
 }
 
+abstract contract ERC20 {
+    string public name;
+    string public symbol;
+    uint8 public constant decimals = 18;
+
+    uint256 private _totalSupply;
+    mapping(address => uint256) private _balances;
+    mapping(address => mapping(address => uint256)) private _allowances;
+
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
+
+    error ERC20InsufficientBalance(
+        address sender,
+        uint256 balance,
+        uint256 needed
+    );
+    error ERC20InsufficientAllowance(
+        address spender,
+        uint256 allowance,
+        uint256 needed
+    );
+    error ERC20InvalidReceiver(address receiver);
+    error ERC20InvalidSpender(address spender);
+
+    constructor(string memory _name, string memory _symbol) {
+        name = _name;
+        symbol = _symbol;
+    }
+
+    function totalSupply() public view returns (uint256) {
+        return _totalSupply;
+    }
+
+    function balanceOf(address account) public view returns (uint256) {
+        return _balances[account];
+    }
+
+    function transfer(address to, uint256 amount) public returns (bool) {
+        _transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    function allowance(
+        address owner,
+        address spender
+    ) public view returns (uint256) {
+        return _allowances[owner][spender];
+    }
+
+    function approve(address spender, uint256 amount) public returns (bool) {
+        _approve(msg.sender, spender, amount);
+        return true;
+    }
+
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public returns (bool) {
+        _spendAllowance(from, msg.sender, amount);
+        _transfer(from, to, amount);
+        return true;
+    }
+
+    function _transfer(address from, address to, uint256 amount) internal {
+        if (to == address(0)) revert ERC20InvalidReceiver(address(0));
+
+        uint256 fromBalance = _balances[from];
+        if (fromBalance < amount)
+            revert ERC20InsufficientBalance(from, fromBalance, amount);
+
+        unchecked {
+            _balances[from] = fromBalance - amount;
+            _balances[to] += amount;
+        }
+
+        emit Transfer(from, to, amount);
+    }
+
+    function _mint(address account, uint256 amount) internal {
+        if (account == address(0)) revert ERC20InvalidReceiver(address(0));
+
+        _totalSupply += amount;
+        unchecked {
+            _balances[account] += amount;
+        }
+
+        emit Transfer(address(0), account, amount);
+    }
+
+    function _burn(address account, uint256 amount) internal {
+        uint256 accountBalance = _balances[account];
+        if (accountBalance < amount)
+            revert ERC20InsufficientBalance(account, accountBalance, amount);
+
+        unchecked {
+            _balances[account] = accountBalance - amount;
+            _totalSupply -= amount;
+        }
+
+        emit Transfer(account, address(0), amount);
+    }
+
+    function _approve(address owner, address spender, uint256 amount) internal {
+        if (spender == address(0)) revert ERC20InvalidSpender(address(0));
+
+        _allowances[owner][spender] = amount;
+        emit Approval(owner, spender, amount);
+    }
+
+    function _spendAllowance(
+        address owner,
+        address spender,
+        uint256 amount
+    ) internal {
+        uint256 currentAllowance = _allowances[owner][spender];
+        if (currentAllowance != type(uint256).max) {
+            if (currentAllowance < amount)
+                revert ERC20InsufficientAllowance(
+                    spender,
+                    currentAllowance,
+                    amount
+                );
+            unchecked {
+                _allowances[owner][spender] = currentAllowance - amount;
+            }
+        }
+    }
+}
+
 abstract contract ReentrancyGuard {
     uint256 private constant _NOT_ENTERED = 1;
     uint256 private constant _ENTERED = 2;
@@ -48,15 +183,12 @@ abstract contract ReentrancyGuard {
     }
 }
 
-contract SimpleDEX is ReentrancyGuard {
+contract SimpleDEX is ERC20, ReentrancyGuard {
     IERC20 public immutable tokenA;
     IERC20 public immutable tokenB;
 
     uint256 public reserveA;
     uint256 public reserveB;
-
-    uint256 public totalLPSupply;
-    mapping(address => uint256) public lpBalances;
 
     uint256 public constant FEE_NUMERATOR = 3;
     uint256 public constant FEE_DENOMINATOR = 1000;
@@ -96,7 +228,12 @@ contract SimpleDEX is ReentrancyGuard {
     error InsufficientInitialLiquidity();
     error InvalidK();
 
-    constructor(address _tokenA, address _tokenB) {
+    constructor(
+        address _tokenA,
+        address _tokenB,
+        string memory _lpName,
+        string memory _lpSymbol
+    ) ERC20(_lpName, _lpSymbol) {
         if (_tokenA == address(0) || _tokenB == address(0))
             revert ZeroAddress();
         if (_tokenA == _tokenB) revert InvalidToken();
@@ -114,24 +251,25 @@ contract SimpleDEX is ReentrancyGuard {
         _safeTransferFrom(tokenA, msg.sender, address(this), amountA);
         _safeTransferFrom(tokenB, msg.sender, address(this), amountB);
 
-        if (totalLPSupply == 0) {
+        uint256 _totalSupply = totalSupply();
+
+        if (_totalSupply == 0) {
             lpMinted = _sqrt(amountA * amountB);
 
             if (lpMinted <= MINIMUM_LIQUIDITY)
                 revert InsufficientInitialLiquidity();
             lpMinted -= MINIMUM_LIQUIDITY;
 
-            totalLPSupply = MINIMUM_LIQUIDITY;
+            _mint(address(0xdead), MINIMUM_LIQUIDITY);
         } else {
-            uint256 lpFromA = (amountA * totalLPSupply) / reserveA;
-            uint256 lpFromB = (amountB * totalLPSupply) / reserveB;
+            uint256 lpFromA = (amountA * _totalSupply) / reserveA;
+            uint256 lpFromB = (amountB * _totalSupply) / reserveB;
             lpMinted = lpFromA < lpFromB ? lpFromA : lpFromB;
         }
 
         if (lpMinted == 0) revert InsufficientLiquidity();
 
-        lpBalances[msg.sender] += lpMinted;
-        totalLPSupply += lpMinted;
+        _mint(msg.sender, lpMinted);
 
         reserveA += amountA;
         reserveB += amountB;
@@ -144,15 +282,16 @@ contract SimpleDEX is ReentrancyGuard {
         uint256 lpAmount
     ) external nonReentrant returns (uint256 amountA, uint256 amountB) {
         if (lpAmount == 0) revert ZeroAmount();
-        if (lpBalances[msg.sender] < lpAmount) revert InsufficientLPBalance();
+        if (balanceOf(msg.sender) < lpAmount) revert InsufficientLPBalance();
 
-        amountA = (lpAmount * reserveA) / totalLPSupply;
-        amountB = (lpAmount * reserveB) / totalLPSupply;
+        uint256 _totalSupply = totalSupply();
+
+        amountA = (lpAmount * reserveA) / _totalSupply;
+        amountB = (lpAmount * reserveB) / _totalSupply;
 
         if (amountA == 0 || amountB == 0) revert InsufficientLiquidity();
 
-        lpBalances[msg.sender] -= lpAmount;
-        totalLPSupply -= lpAmount;
+        _burn(msg.sender, lpAmount);
 
         reserveA -= amountA;
         reserveB -= amountB;
@@ -245,10 +384,6 @@ contract SimpleDEX is ReentrancyGuard {
         returns (uint256 _reserveA, uint256 _reserveB)
     {
         return (reserveA, reserveB);
-    }
-
-    function getLPBalance(address account) external view returns (uint256) {
-        return lpBalances[account];
     }
 
     function getPriceAinB() external view returns (uint256 price) {
