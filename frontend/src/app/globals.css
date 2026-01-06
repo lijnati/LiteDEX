@@ -1,0 +1,111 @@
+:root {
+  --background: #0b0e11;
+  --foreground: #ffffff;
+  --card-bg: rgba(23, 27, 34, 0.7);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --accent-primary: #00d4ff;
+  --accent-secondary: #ff00c8;
+  --text-muted: #b0b0b0;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-stroke: rgba(255, 255, 255, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: radial-gradient(circle at top left, #1a1a2e, #0b0e11);
+  color: var(--foreground);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+}
+
+.glass-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.btn-primary {
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+  color: white;
+  padding: 12px 24px;
+  border-radius: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5);
+  filter: brightness(1.1);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.input-group {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 16px;
+  padding: 16px;
+  transition: border-color 0.2s;
+}
+
+.input-group:focus-within {
+  border-color: var(--accent-primary);
+}
+
+input {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 24px;
+  font-weight: 500;
+  width: 100%;
+  outline: none;
+}
+
+input::placeholder {
+  color: var(--text-muted);
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  color: var(--text-muted);
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  color: white;
+  background: var(--glass-bg);
+  border-radius: 12px;
+}
