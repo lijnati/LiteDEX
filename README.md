@@ -2,7 +2,7 @@
 
 
 LiteDEX is a simple Automated Market Maker (AMM) Decentralized Exchange built with Solidity and Next.js. It implements the constant product formula ($x * y = k$) and allows users to swap tokens, add liquidity, and earn fees.
-<!-- add screenshot -->
+
 ![LiteDEX Screenshot](./litedex.png)
 
 ##  Project Structure
